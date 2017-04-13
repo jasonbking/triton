@@ -47,10 +47,10 @@ this file to output the list of components for each respective version.
 
 ### Where to build
 
-Currently, the easiest method for building Triton is to do so on a local
-Triton or CoaL install.  Easily building the images in the Triton Public Cloud
-(TPC) depends on the work described in
-[RFD 46](https://github.com/joyent/rfd/blob/mastert/rfc/0046/README.md) to be
+Currently, the easiest method for building Triton is to do so on a local Triton
+DataCenter or CoaL install.  Easily building the images in the Triton Public
+Cloud (TPC) depends on the work described in [RFD
+46](https://github.com/joyent/rfd/blob/mastert/rfc/0046/README.md) to be
 complete.
 
 NOTE: Even if you do not use TPC and output your builds to Manta, you will still
@@ -103,6 +103,70 @@ export SDC_URL=https://us-east-1.api.joyentcloud.com
 where <USER> is the name of the TPC/Triton user you want to build with, and
 <KEY> is the SSH fingerprint of the SSH key that you've added for your user.
 
+The most convenient method of setting the SDC\_\* variables is to use a
+triton profile (note: you will still need to set the MANTA\_\* variables).
+If you do not already have a profile created for the Triton instance you wish
+to use, run the following:
+
+```
+$ triton profile create
+A profile name. A short string to identify this profile to the `triton` command.
+name: us-east-1
+
+
+The CloudAPI endpoint URL.
+url: https://us-east-1.api.joyent.com
+
+
+Your account login name.
+account: jsmith
+
+
+The fingerprint of the SSH key you want to use to authenticate with CloudAPI.
+Specify the fingerprint or the index of one of the found keys in the list
+below. If the key you want to use is not listed, make sure it is either saved
+in your SSH keys directory (~/.ssh) or loaded into your SSH agent.
+
+1. Fingerprint "e0:c8:63:2c:43:82:3e:97:c0:4d:97:0a:8e:d7:16:21" (2048-bit RSA)
+   - in agent: /Users/JohnSmith/.ssh/id_rsa
+   - in homedir (locked): $HOME/.ssh/id_rsa (comment "my ssh key")
+
+2. Fingerprint "32:2e:55:31:91:1d:d8:ba:39:21:2f:45:2d:67:7c:e5" (256-bit ECDSA)
+   - in agent: /Users/JohnSmith/.ssh/id_ecdsa
+   - in homedir (locked): $HOME/.ssh/id_ecdsa (comment "my ssh key")
+
+keyId: 1
+Using key 1: e0:c8:63:2c:43:82:3e:97:c0:4d:97:0a:8e:d7:16:21
+
+Saved profile "us-east-1".
+
+
+# Docker setup
+
+This section will setup authentication to Triton DataCenter's Docker endpoint
+using your account and key information specified above. This is only required
+if you intend to use `docker` with this profile.
+
+WARNING: Docker uses authentication via client TLS certificates that do not
+support encrypted (passphrase protected) keys or SSH agents. If you continue,
+this profile setup will attempt to write a copy of your SSH private key
+formatted as an unencrypted TLS certificate in "~/.triton/docker" for use by
+the Docker client.
+
+Continue? [y/n] n
+Skipping Docker setup (you can run "triton profile docker-setup" later).
+$
+```
+
+Since a number of the mountain gorilla components still use the older sdc\*
+commands which require the SDC\_\* environment variables, run the following
+command (substituting the appropriate triton profile name) to set all the needed
+values:
+
+```
+eval "$(triton env us-east-1)"
+```
+
 If you're using CoaL and using the default self-signed certificates for cloudapi
 you will also want to:
 
@@ -110,21 +174,17 @@ you will also want to:
 export TRITON_TLS_INSECURE=1
 ```
 
-otherwise you'll get errors like:
+otherwise you may get certificate related errors.
 
-```
-sdc-listpackages: error: undefined
-```
+It's possible to use different <USER> values for MANTA\_USER and SDC\_ACCOUNT
+if you've pointed these at different Triton standups. In that case, zones will
+be created using the credentials from the active triton profile and any files
+pulled from / pushed to Manta will be done using the MANTA\_USER's credentials.
 
-It's possible to use different <USER> values for MANTA_USER and SDC_ACCOUNT if
-you've pointed these at different Triton standups. In that case zones will be
-created using the SDC_ACCOUNT credentials and any files pulled from / pushed to
-Manta will be done using the MANTA_USER's credentials.
+Be sure to validate that the SDC\_URL and MANTA\_URL values match your local
+cloudapi and manta respectively.
 
-Be sure to change the SDC_URL and MANTA_URL above to match your local cloudapi
-and manta respectively.
-
-NOTE: if your Triton install is not yet setup, you need to set SDC_URL *after*
+NOTE: if your Triton install is not yet setup, you need to set SDC\_URL *after*
 setting up cloudapi in the next section.
 
 
@@ -169,7 +229,7 @@ Firewall rules can also be setup after the build zone(s) are created, but before
 the first build.
 
 Record the external IP address for imgapi. You'll need this later to set
-SDC_IMGAPI_URL.
+SDC\_IMGAPI\_URL.
 
 For your convienence, here are commands for the previous steps if you are
 running in COAL:
@@ -217,9 +277,10 @@ run the following command from the headnode:
 sdcadm post-setup dev-sample-data
 ```
 
-Optionally, if present, the sdc_4096 package will also work fine, however
+Optionally, if present, the sdc\_4096 package will also work fine, however
 the Triton user doing the build must be given access to the package before
-it can be used to create an instance.
+it can be used to create an instance.  Consult the Triton documentation for
+information on how to do this.
 
 ## Setting up the build environment(s)
 
@@ -335,14 +396,14 @@ You'll also need to ensure these variables are set at the time of each build.
 
 where:
 
- * SDC_LOCAL_BUILD tells MG that you don't want the build creating zones in JPC
-   or pushing files to JPC's Manta as part of the build process.
- * SDC_IMAGE_PACKAGE is the name of the package you want to use for the build
-   zones. CoaL ships with an sdc_4096 package which should work, or the
+ * SDC\_LOCAL\_BUILD tells MG that you don't want the build creating zones
+   in JPC or pushing files to JPC's Manta as part of the build process.
+ * SDC\_IMAGE\_PACKAGE is the name of the package you want to use for the build
+   zones. CoaL ships with an sdc\_4096 package which should work, or the
    sample-4G package if imported will also work.
- * SDC_TESTING allows the node-smartdc tools to work even when you've got a
+ * SDC\_TESTING allows the node-smartdc tools to work even when you've got a
    self-signed SSL certificate.
- * SDC_IMGAPI_URL should be set to https://<IP> where <IP> is the external IP
+ * SDC\_IMGAPI\_URL should be set to https://<IP> where <IP> is the external IP
    you added to imgapi (remembering to add the firewall rules if you have not
    already)
 
@@ -353,15 +414,15 @@ build zone for the target you're building. They should also be run with all the
 environment variables described earlier set.
 
 By default, the build process will attempt to fetch the dependencies from
-/${MANTA_USER}/stor/builds.  The `-d` and `-D` options can be used to specify
+/${MANTA\_USER}/stor/builds.  The `-d` and `-D` options can be used to specify
 an alternate Manta account and location (respectively).
 
-### Option 1: build a single target, taking dependencies from Joyent_Dev
+### Option 1: build a single target, taking dependencies from Joyent\_Dev
 
 Ensure you've set the appropriate environment variables, especially:
 
- * SDC_LOCAL_BUILD if you're building against your own SDC/CoaL
- * SDC_URL set to the proper cloudapi
+ * SDC\_LOCAL\_BUILD if you're building against your own SDC/CoaL
+ * SDC\_URL set to the proper cloudapi
 
 Then to build, run the following in your MG directory in your build zone:
 
@@ -379,14 +440,14 @@ TARG=assets; ./configure -t ${TARG} -d Joyent_Dev -D /stor/builds \
 
 which will:
 
- * download dependencies from /Joyent_Dev/stor/builds
+ * download dependencies from /Joyent\_Dev/stor/builds
  * create a tarball of the assets bits + dependencies
- * create a SmartOS VM in the Triton install indicated in SDC_URL (using
+ * create a SmartOS VM in the Triton install indicated in SDC\_URL (using
    cloudapi)
  * install the tarball of bits into the VM
  * create an image from the VM, sending to Manta
  * download the image from Manta modify the manifest
- * push the build back to manta in ${MANTA_USER}/stor/whatever/builds/assets
+ * push the build back to manta in ${MANTA\_USER}/stor/whatever/builds/assets
 
 Note: most packages include a required platform version for building.  This
 is used so that images are built on the oldest supported (at build time)
@@ -404,7 +465,7 @@ TARG=<something>; ./configure -t ${TARG} -d Joyent_Dev -D /stor/builds \
     ${TARG}_IMAGE_UUID=ede31770-e19c-11e5-bb6e-3b7de3cca9ce
 ```
 
-### Option 2: build a single target, taking dependencies from Joyent_Dev but not uploading results
+### Option 2: build a single target, taking dependencies from Joyent\_Dev but not uploading results
 
 To *not* upload results to Manta, follow the same procedure as in "Option 1" but
 change the make target from:
